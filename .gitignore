@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+
+android/.gradle/
+android/build/
+android/app/build/
+android/dist/
+android/local.properties
+*.apk
+*.aab
+
+.idea/
+.cxx/
+local.properties
+captures/
+*.iml
