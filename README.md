@@ -12,13 +12,17 @@
 
 ## Windows
 
-Кодът за Windows е в корена на проекта, до този файл:
+Свали **Motion-Extraction-Windows-1.13.zip** от [Releases](https://github.com/smouky577/motion-extraction/releases). Цъкни върху името на zip файла. Той се сваля цял.
+
+Не отваряй `app.py` и `engine.py` в сайта и не копирай текста в нов файл. Така файловете само се показват, не се свалят.
+
+Разархивирай zip-а. В папката има:
 
 - `Motion Extraction.bat` — пуска програмата
 - `app.py` — прозорецът
 - `engine.py` — самият ефект
 
-**Пускане:** отвори папката и кликни два пъти върху `Motion Extraction.bat`.
+Кликни два пъти върху `Motion Extraction.bat`. Трите файла трябва да останат в една папка.
 
 Батникът стартира `C:\Python314\pythonw.exe` с `app.py`. В този Python вече са нужните библиотеки: OpenCV, NumPy и Pillow.
 
@@ -46,13 +50,17 @@ The phone source is in the `android` folder.
 
 ## Windows
 
-The Windows source is in the project root, next to this file:
+Download **Motion-Extraction-Windows-1.13.zip** from [Releases](https://github.com/smouky577/motion-extraction/releases). Click the zip file name. The whole archive downloads.
+
+Do not open `app.py` or `engine.py` on the site and do not paste them into a new file. That only shows the text.
+
+Unzip the archive. The folder contains:
 
 - `Motion Extraction.bat` — starts the program
 - `app.py` — the window
 - `engine.py` — the effect
 
-**Run it:** open the folder and double-click `Motion Extraction.bat`.
+Double-click `Motion Extraction.bat`. Keep the three files in the same folder.
 
 The batch file starts `C:\Python314\pythonw.exe` with `app.py`. That Python already has OpenCV, NumPy, and Pillow.
 
