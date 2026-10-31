@@ -6,7 +6,7 @@
 
 ## Телефон
 
-Свали **Motion-Extraction-1.13.apk** от [Releases](https://github.com/smouky577/motion-extraction/releases) и го инсталирай. Ако Android попита, разреши инсталация от този файл.
+Свали **Motion-Extraction-1.14.apk** от [Releases](https://github.com/smouky577/motion-extraction/releases) и го инсталирай. Ако Android попита, разреши инсталация от този файл.
 
 Кодът за телефона е в папката `android`.
 
@@ -44,7 +44,7 @@ There is a phone app and a Windows app.
 
 ## Phone
 
-Download **Motion-Extraction-1.13.apk** from [Releases](https://github.com/smouky577/motion-extraction/releases) and install it. Allow installation from this file if Android asks.
+Download **Motion-Extraction-1.14.apk** from [Releases](https://github.com/smouky577/motion-extraction/releases) and install it. Allow installation from this file if Android asks.
 
 The phone source is in the `android` folder.
 

@@ -1,14 +1,19 @@
 package com.motionextraction.app
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -22,8 +27,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LocalTextStyle
@@ -98,6 +105,7 @@ private fun MotionScreen() {
         if (granted) runtime.openCamera()
     }
     var channels by remember { mutableStateOf(false) }
+    var about by remember { mutableStateOf(false) }
     var colorsOpen by remember { mutableStateOf(false) }
     var delay by remember { mutableIntStateOf(1) }
     var blur by remember { mutableIntStateOf(0) }
@@ -135,7 +143,13 @@ private fun MotionScreen() {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("Motion Extraction", color = Accent, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                    Text("by Dr. Baysinger", color = Muted, fontSize = 11.sp, maxLines = 1)
+                    Text(
+                        "by Dr. Baysinger",
+                        color = Muted,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        modifier = Modifier.clickable { about = true },
+                    )
                 }
                 Text(
                     "инверсия   ·   50%   ·   изместване във времето",
@@ -331,6 +345,9 @@ private fun MotionScreen() {
             }
         }
         }
+        if (about) {
+            AboutDialog { about = false }
+        }
     }
 }
 
@@ -416,6 +433,52 @@ private fun frameCaption(delay: Int, span: Int): String {
 }
 
 private fun Int.signed(): String = if (this > 0) "+$this" else toString()
+
+private const val ABOUT_EN = "Donate to Dr. Baysinger. He promises to spend it on hookers and beer."
+private const val ABOUT_BG = "Дарете на Dr. Baysinger. Той обещава да ги изхарчи за курви и бело."
+private const val REVOLUT = "revolut.me/georgi09qc"
+private val BTC = listOf(
+    "bc1qr84akpfry7sjs6759wwq722fyert9apcarpst6",
+    "bc1p6hp5q20u9t9upsjt7425wgqdrs0cr8wnnlf9atu24z92pzsnq85q62uc8e",
+)
+
+@Composable
+private fun AboutDialog(onClose: () -> Unit) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onClose,
+        confirmButton = {
+            TextButton(onClick = onClose) { Text("OK", color = Accent) }
+        },
+        title = { Text("About", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(ABOUT_EN)
+                Text(ABOUT_BG, modifier = Modifier.padding(top = 12.dp))
+                Text("Revolut", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp))
+                CopyLine(REVOLUT, context)
+                Text("BTC address", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
+                BTC.forEach { CopyLine(it, context) }
+            }
+        },
+    )
+}
+
+@Composable
+private fun CopyLine(value: String, context: Context) {
+    Text(
+        value,
+        color = Accent,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("address", value))
+                Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+            }
+            .padding(vertical = 6.dp),
+    )
+}
 
 private fun Modifier.pullUp(by: Dp): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints)

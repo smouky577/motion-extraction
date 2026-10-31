@@ -35,6 +35,13 @@ BG = "#10120f"
 PANEL = "#191c18"
 RAISED = "#242824"
 LINE = "#31362f"
+ABOUT_EN = "Donate to Dr. Baysinger. He promises to spend it on hookers and beer."
+ABOUT_BG = "Дарете на Dr. Baysinger. Той обещава да ги изхарчи за курви и бело."
+REVOLUT = "revolut.me/georgi09qc"
+BTC = (
+    "bc1qr84akpfry7sjs6759wwq722fyert9apcarpst6",
+    "bc1p6hp5q20u9t9upsjt7425wgqdrs0cr8wnnlf9atu24z92pzsnq85q62uc8e",
+)
 TEXT = "#f3f1e8"
 MUTED = "#9aa194"
 ACCENT = "#d6f25c"
@@ -128,6 +135,53 @@ def describe(snap: dict) -> str:
     if mode == "demo":
         return "Демо    неподвижното изчезва, движението остава"
     return "Отвори клип, пусни камерата или демото"
+
+
+def show_about(root: tk.Tk) -> None:
+    window = tk.Toplevel(root)
+    window.title("About")
+    window.configure(bg=BG)
+    window.resizable(False, False)
+    window.transient(root)
+    frame = tk.Frame(window, bg=BG, padx=18, pady=16)
+    frame.pack(fill="both", expand=True)
+    tk.Label(frame, text="About", bg=BG, fg=TEXT, font=("Segoe UI", 16, "bold"), anchor="w").pack(fill="x")
+    tk.Label(
+        frame, text=ABOUT_EN, bg=BG, fg=TEXT, font=("Segoe UI", 11), wraplength=640, justify="left", anchor="w"
+    ).pack(fill="x", pady=(16, 8))
+    tk.Label(
+        frame, text=ABOUT_BG, bg=BG, fg=TEXT, font=("Segoe UI", 11), wraplength=640, justify="left", anchor="w"
+    ).pack(fill="x")
+    tk.Frame(frame, bg=LINE, height=1).pack(fill="x", pady=14)
+    tk.Label(frame, text="Revolut", bg=BG, fg=TEXT, font=("Segoe UI", 12, "bold"), anchor="w").pack(fill="x")
+    note = tk.Label(frame, text="", bg=BG, fg=ACCENT, font=("Segoe UI", 9), anchor="w")
+
+    def copy(value: str) -> None:
+        root.clipboard_clear()
+        root.clipboard_append(value)
+        note.configure(text="Copied")
+
+    def link(value: str) -> None:
+        label = tk.Label(
+            frame, text=value, bg=BG, fg=ACCENT, font=("Segoe UI", 10), cursor="hand2", anchor="w", justify="left"
+        )
+        label.pack(fill="x", pady=(6, 0))
+        label.bind("<Button-1>", lambda _event: copy(value))
+
+    link(REVOLUT)
+    tk.Label(frame, text="BTC address", bg=BG, fg=TEXT, font=("Segoe UI", 12, "bold"), anchor="w").pack(
+        fill="x", pady=(16, 0)
+    )
+    for address in BTC:
+        link(address)
+    note.pack(fill="x", pady=(14, 0))
+    window.update_idletasks()
+    width, height = 700, window.winfo_reqheight()
+    parent_x = root.winfo_rootx() + max(0, (root.winfo_width() - width) // 2)
+    parent_y = root.winfo_rooty() + max(0, (root.winfo_height() - height) // 2)
+    window.geometry(f"{width}x{height}+{parent_x}+{parent_y}")
+    window.grab_set()
+    window.focus_set()
 
 
 class MotionApp:
@@ -268,6 +322,16 @@ class MotionApp:
             font=("Segoe UI", 9),
         )
         subtitle.pack(side="left", padx=(16, 0), pady=(8, 0))
+        credit = tk.Label(
+            header,
+            text="by Dr. Baysinger",
+            bg=BG,
+            fg=MUTED,
+            font=("Segoe UI", 9),
+            cursor="hand2",
+        )
+        credit.pack(side="right")
+        credit.bind("<Button-1>", lambda _event: show_about(self.root))
 
         rule = tk.Frame(self.root, bg=ACCENT, height=2)
         rule.grid(row=2, column=0, sticky="ew", padx=18, pady=(8, 0))
