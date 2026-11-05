@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Motion Extraction"
 include(":app")
+include(":fft")

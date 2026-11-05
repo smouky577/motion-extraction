@@ -40,11 +40,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -94,7 +96,25 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun MotionScreen() {
     val context = LocalContext.current
-    val runtime = remember { MotionRuntime(context.applicationContext) }
+    val runtime = remember {
+        MotionRuntime(context.applicationContext).also { it.updateEffects(IirSettings()) }
+    }
+    var fx by remember { mutableStateOf(IirSettings()) }
+    var modeOpen by remember { mutableStateOf(false) }
+    var showTripod by remember { mutableStateOf(false) }
+    fun pushFx(next: IirSettings, reset: Boolean = false) {
+        fx = next
+        runtime.updateEffects(next, reset)
+    }
+    LaunchedEffect(runtime.mode, fx.enabled) {
+        if (fx.enabled && runtime.mode == "live") {
+            showTripod = true
+            delay(2500)
+            showTripod = false
+        } else {
+            showTripod = false
+        }
+    }
     DisposableEffect(runtime) {
         onDispose { runtime.release() }
     }
@@ -180,6 +200,18 @@ private fun MotionScreen() {
                     color = Muted,
                 )
             }
+            if (showTripod) {
+                Text(
+                    "Ползвай статив",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp)
+                        .background(Color(0xAA10120F), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
         }
         Column(
             modifier = Modifier
@@ -187,15 +219,18 @@ private fun MotionScreen() {
                 .then(
                     if (channels && controlsHeight > 0) {
                         Modifier.height(with(density) { controlsHeight.toDp() })
+                    } else if (fx.enabled) {
+                        val locked = if (controlsHeight > 0) with(density) { controlsHeight.toDp() } else 320.dp
+                        Modifier.height(locked)
                     } else {
                         Modifier
                     }
                 )
                 .onSizeChanged { size ->
-                    if (!channels) controlsHeight = size.height
+                    if (!channels && !fx.enabled) controlsHeight = size.height
                 }
                 .then(if (channels) Modifier else Modifier.verticalScroll(scroll))
-                .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = if (channels) 8.dp else 14.dp),
+                .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = if (channels || fx.enabled) 8.dp else 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
         if (!channels && runtime.mode == "file" && runtime.position >= 0f) {
@@ -265,7 +300,7 @@ private fun MotionScreen() {
                 ) { runtime.toggleRecord() }
             }
         }
-        if (!channels) LabeledSlider(
+        if (!channels && !fx.enabled) LabeledSlider(
             title = "Изместване",
             value = delay.toFloat(),
             range = 1f..span.toFloat(),
@@ -275,7 +310,7 @@ private fun MotionScreen() {
             delay = it.roundToInt().coerceIn(1, span)
             push(nextDelay = delay)
         }
-        if (!channels) LabeledSlider(
+        if (!channels && !fx.enabled) LabeledSlider(
             title = "Блур за детайл",
             value = blur.toFloat(),
             range = 0f..24f,
@@ -285,7 +320,42 @@ private fun MotionScreen() {
             blur = it.roundToInt().coerceIn(0, 24)
             push(nextBlur = blur)
         }
-        Row(
+        if (!channels) Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ActionButton(
+                "Изместване",
+                if (!fx.enabled) Accent else Panel,
+                if (!fx.enabled) Ink else Color.White,
+                true,
+                Modifier.weight(1f),
+            ) {
+                channels = false
+                pushFx(fx.copy(enabled = false))
+            }
+            ActionButton(
+                "Ефекти",
+                if (fx.enabled) Accent else Panel,
+                if (fx.enabled) Ink else Color.White,
+                true,
+                Modifier.weight(1f),
+            ) {
+                channels = false
+                pushFx(fx.copy(enabled = true), reset = !fx.enabled)
+            }
+        }
+        if (!channels && fx.enabled) {
+            EffectsPanel(
+                fx = fx,
+                modeOpen = modeOpen,
+                onModeOpen = { modeOpen = it },
+                onChange = { pushFx(it) },
+                onPreset = { pushFx(it, reset = true) },
+                onFreeze = { runtime.freezeReference() },
+            )
+        }
+        if (!fx.enabled) Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -347,6 +417,109 @@ private fun MotionScreen() {
         }
         if (about) {
             AboutDialog { about = false }
+        }
+    }
+}
+
+@Composable
+private fun EffectsPanel(
+    fx: IirSettings,
+    modeOpen: Boolean,
+    onModeOpen: (Boolean) -> Unit,
+    onChange: (IirSettings) -> Unit,
+    onPreset: (IirSettings) -> Unit,
+    onFreeze: () -> Unit,
+) {
+    val modeLabel = iirModes.firstOrNull { it.first == fx.mode }?.second ?: "Черно"
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActionButton("Капки", Panel, Color.White, true, Modifier.weight(1f)) { onPreset(fx.insects()) }
+            ActionButton("Трева", Panel, Color.White, true, Modifier.weight(1f)) { onPreset(fx.grass()) }
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActionButton("Пара", Panel, Color.White, true, Modifier.weight(1f)) { onPreset(fx.vapor()) }
+            ActionButton("Луна", Panel, Color.White, true, Modifier.weight(1f)) { onPreset(fx.moon()) }
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(modifier = Modifier.weight(1f)) {
+                ActionButton(modeLabel, Accent, Ink, true, Modifier.fillMaxWidth()) { onModeOpen(true) }
+                DropdownMenu(expanded = modeOpen, onDismissRequest = { onModeOpen(false) }) {
+                    iirModes.forEach { (key, label) ->
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = {
+                                onChange(fx.copy(mode = key))
+                                onModeOpen(false)
+                            },
+                        )
+                    }
+                }
+            }
+            ActionButton(
+                if (fx.white) "Бяло" else "По канали",
+                if (fx.white) Warm else Panel,
+                if (fx.white) Ink else Color.White,
+                true,
+                Modifier.weight(1f),
+            ) { onChange(fx.copy(white = !fx.white)) }
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActionButton(
+                if (fx.lockExposure) "AE заключен" else "Заключи AE",
+                if (fx.lockExposure) Warm else Panel,
+                if (fx.lockExposure) Ink else Color.White,
+                true,
+                Modifier.weight(1f),
+            ) { onChange(fx.copy(lockExposure = !fx.lockExposure)) }
+            ActionButton(
+                "Замрази сега",
+                Panel,
+                Color.White,
+                fx.mode == "frozen",
+                Modifier.weight(1f),
+            ) { onFreeze() }
+        }
+        LabeledSlider("Памет", fx.memory, 0.1f..10f, 0, "%.1f сек".format(fx.memory)) {
+            onChange(fx.copy(memory = it.coerceIn(0.1f, 10f)))
+        }
+        LabeledSlider("Изглаждане", fx.aFast, 0.1f..0.6f, 0, "a %.2f".format(fx.aFast)) {
+            onChange(fx.copy(aFast = it.coerceIn(0.1f, 0.6f)))
+        }
+        LabeledSlider("Усилване", fx.gain, 1f..12f, 0, "×%.1f".format(fx.gain)) {
+            onChange(fx.copy(gain = it.coerceIn(1f, 12f)))
+        }
+        LabeledSlider("Праг", fx.thr, 0f..10f, 0, "%.1f".format(fx.thr)) {
+            onChange(fx.copy(thr = it.coerceIn(0f, 10f)))
+        }
+        LabeledSlider("Гама", fx.gamma, 0.4f..1f, 0, "%.2f".format(fx.gamma)) {
+            onChange(fx.copy(gamma = it.coerceIn(0.4f, 1f)))
+        }
+        LabeledSlider("Блур", fx.blur, 0f..8f, 0, if (fx.blur < 0.2f) "без" else "%.1f".format(fx.blur)) {
+            onChange(fx.copy(blur = it.coerceIn(0f, 8f)))
+        }
+        LabeledSlider("Оригинал", fx.dim, 0f..1f, 0, "%.2f".format(fx.dim)) {
+            onChange(fx.copy(dim = it.coerceIn(0f, 1f)))
+        }
+        LabeledSlider("Ореол", fx.glowSigma, 4f..30f, 0, "%.0f".format(fx.glowSigma)) {
+            onChange(fx.copy(glowSigma = it.coerceIn(4f, 30f)))
+        }
+        LabeledSlider("Сила на ореола", fx.glowStrength, 0f..2f, 0, "%.2f".format(fx.glowStrength)) {
+            onChange(fx.copy(glowStrength = it.coerceIn(0f, 2f)))
+        }
+        LabeledSlider(
+            "Обновяване",
+            fx.refreshSec,
+            0f..60f,
+            0,
+            if (fx.refreshSec < 0.5f) "никога" else "%.0f сек".format(fx.refreshSec),
+        ) {
+            onChange(fx.copy(refreshSec = it.coerceIn(0f, 60f)))
+        }
+        LabeledSlider("Мащаб", fx.scale, 0.25f..1f, 0, "%.2f".format(fx.scale)) {
+            onChange(fx.copy(scale = it.coerceIn(0.25f, 1f)))
         }
     }
 }

@@ -143,6 +143,7 @@ class CameraFeed(
     context: Context,
     private val onFrame: (RawFrame) -> Unit,
     private val onError: (String) -> Unit,
+    private val exposureLocked: () -> Boolean = { false },
 ) {
     private val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private val thread = HandlerThread("motion-camera").apply { start() }
@@ -197,14 +198,7 @@ class CameraFeed(
                                             return
                                         }
                                         session = capture
-                                        val request = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
-                                            addTarget(imageReader.surface)
-                                            set(
-                                                CaptureRequest.CONTROL_AF_MODE,
-                                                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO,
-                                            )
-                                        }.build()
-                                        capture.setRepeatingRequest(request, null, handler)
+                                        submitRequest()
                                     }
 
                                     override fun onConfigureFailed(capture: CameraCaptureSession) {
@@ -235,9 +229,36 @@ class CameraFeed(
         }
     }
 
+    fun setLocked() {
+        handler.post { submitRequest() }
+    }
+
     fun stop() {
         generation.incrementAndGet()
         handler.post { closeOnCameraThread() }
+    }
+
+    private fun submitRequest() {
+        val camera = device ?: return
+        val capture = session ?: return
+        val surface = reader?.surface ?: return
+        val locked = exposureLocked()
+        val request = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
+            addTarget(surface)
+            if (locked) {
+                set(CaptureRequest.CONTROL_AE_LOCK, true)
+                set(CaptureRequest.CONTROL_AWB_LOCK, true)
+                set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
+            } else {
+                set(CaptureRequest.CONTROL_AE_LOCK, false)
+                set(CaptureRequest.CONTROL_AWB_LOCK, false)
+                set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
+            }
+        }.build()
+        try {
+            capture.setRepeatingRequest(request, null, handler)
+        } catch (_: Exception) {
+        }
     }
 
     fun release() {
@@ -308,40 +329,85 @@ class VideoDecoder(context: Context, uri: Uri) {
         height = format.getInteger(MediaFormat.KEY_HEIGHT)
         durationUs = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else 0L
         if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
-            fps = format.getInteger(MediaFormat.KEY_FRAME_RATE).toFloat().coerceIn(1f, 120f)
+            fps = format.getInteger(MediaFormat.KEY_FRAME_RATE).toFloat().coerceIn(1f, 480f)
         }
+        val timed = fpsFromSamples()
+        if (timed > 1f) fps = timed
         if (format.containsKey(MediaFormat.KEY_ROTATION)) {
             rotation = format.getInteger(MediaFormat.KEY_ROTATION)
         }
         val mime = format.getString(MediaFormat.KEY_MIME)!!
-        decoder = MediaCodec.createDecoderByType(mime).also {
-            it.configure(format, null, null, 0)
-            it.start()
+        decoder = openDecoder(mime, track)
+    }
+
+    private fun fpsFromSamples(): Float {
+        var count = 0
+        var first = -1L
+        var last = 0L
+        while (count < 200_000) {
+            val time = extractor.sampleTime
+            if (time < 0L) break
+            if (first < 0L) first = time
+            last = time
+            count++
+            if (!extractor.advance()) break
+        }
+        extractor.seekTo(0, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+        if (count < 2 || last <= first) return 0f
+        return ((count - 1) * 1_000_000f / (last - first)).coerceIn(1f, 480f)
+    }
+
+    private fun openDecoder(mime: String, track: Int): MediaCodec {
+        val fast = extractor.getTrackFormat(track)
+        if (Build.VERSION.SDK_INT >= 23) {
+            fast.setInteger(MediaFormat.KEY_OPERATING_RATE, fps.toInt().coerceAtLeast(240).coerceAtMost(960))
+            fast.setInteger(MediaFormat.KEY_PRIORITY, 1)
+        }
+        val codec = MediaCodec.createDecoderByType(mime)
+        return try {
+            codec.configure(fast, null, null, 0)
+            codec.start()
+            codec
+        } catch (_: Exception) {
+            codec.release()
+            MediaCodec.createDecoderByType(mime).also {
+                it.configure(extractor.getTrackFormat(track), null, null, 0)
+                it.start()
+            }
         }
     }
 
     fun next(): Decoded {
         val codec = decoder ?: return Decoded.End
         val info = MediaCodec.BufferInfo()
-        repeat(8) {
+        val spins = if (inputDone) 24 else 3
+        repeat(spins) {
             if (!inputDone) {
-                val inIndex = codec.dequeueInputBuffer(8_000)
+                val inIndex = codec.dequeueInputBuffer(5_000)
                 if (inIndex >= 0) {
-                    val buffer = codec.getInputBuffer(inIndex)!!
-                    val size = extractor.readSampleData(buffer, 0)
-                    if (size < 0) {
-                        codec.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                        inputDone = true
-                    } else {
-                        codec.queueInputBuffer(inIndex, 0, size, extractor.sampleTime, 0)
-                        extractor.advance()
+                    val buffer = codec.getInputBuffer(inIndex)
+                    if (buffer != null) {
+                        val size = extractor.readSampleData(buffer, 0)
+                        if (size < 0) {
+                            codec.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                            inputDone = true
+                        } else {
+                            val whenUs = extractor.sampleTime.coerceAtLeast(0L)
+                            codec.queueInputBuffer(inIndex, 0, size, whenUs, 0)
+                            extractor.advance()
+                        }
                     }
                 }
             }
-            val outIndex = codec.dequeueOutputBuffer(info, 8_000)
+            val outIndex = codec.dequeueOutputBuffer(info, if (inputDone) 20_000 else 8_000)
             if (outIndex >= 0) {
                 val eos = info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
-                val image = codec.getOutputImage(outIndex)
+                val timeUs = info.presentationTimeUs
+                val image = try {
+                    codec.getOutputImage(outIndex)
+                } catch (_: Exception) {
+                    null
+                }
                 val frame = if (image != null) {
                     try {
                         yuvImageToArgb(image, 640)
@@ -352,8 +418,10 @@ class VideoDecoder(context: Context, uri: Uri) {
                     null
                 }
                 codec.releaseOutputBuffer(outIndex, false)
-                if (frame != null) return Decoded.Frame(rotateArgb(frame, rotation))
+                if (frame != null) return Decoded.Frame(rotateArgb(frame, rotation), timeUs)
                 if (eos) return Decoded.End
+            } else if (!inputDone && outIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                return Decoded.Pending
             }
         }
         return if (inputDone) Decoded.End else Decoded.Pending
@@ -387,13 +455,14 @@ class VideoDecoder(context: Context, uri: Uri) {
 }
 
 sealed class Decoded {
-    data class Frame(val raw: RawFrame) : Decoded()
+    data class Frame(val raw: RawFrame, val timeUs: Long = 0L) : Decoded()
     data object Pending : Decoded()
     data object End : Decoded()
 }
 
 class Mp4Encoder(private val context: Context, private val width: Int, private val height: Int, fps: Float) {
-    private val frameRate = fps.toInt().coerceIn(1, 60)
+    private var frameRate = fps.toInt().coerceIn(1, 480)
+    private var lastPts = -1L
     private var encoder: MediaCodec? = null
     private var muxer: MediaMuxer? = null
     private var track = -1
@@ -420,28 +489,54 @@ class Mp4Encoder(private val context: Context, private val width: Int, private v
         val pfd = context.contentResolver.openFileDescriptor(target, "w") ?: error("Не мога да запиша видеото.")
         descriptor = pfd
         colorFormat = chooseColorFormat()
-        val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
-            setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
-            setInteger(MediaFormat.KEY_BIT_RATE, width * height * 5)
-            setInteger(MediaFormat.KEY_FRAME_RATE, frameRate)
-            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
-        }
-        encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).also {
-            it.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-            it.start()
-        }
+        encoder = startEncoder()
         muxer = MediaMuxer(pfd.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
     }
 
-    fun write(pixels: IntArray) {
+    private fun startEncoder(): MediaCodec {
+        var lastError: Exception? = null
+        for (rate in listOf(frameRate, 240, 120, 60, 30).distinct()) {
+            val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
+                setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
+                val pace = (rate / 30f).coerceIn(1f, 8f)
+                setInteger(MediaFormat.KEY_BIT_RATE, (width * height * 5 * pace).toInt())
+                setInteger(MediaFormat.KEY_FRAME_RATE, rate)
+                setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+            }
+            val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+            try {
+                codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                codec.start()
+                frameRate = rate
+                return codec
+            } catch (error: Exception) {
+                lastError = error
+                try {
+                    codec.release()
+                } catch (_: Exception) {
+                }
+            }
+        }
+        throw lastError ?: IllegalStateException("Енкодерът не тръгна.")
+    }
+
+    fun write(pixels: IntArray, timeUs: Long = -1L) {
         val codec = encoder ?: return
         drain(false)
-        val index = codec.dequeueInputBuffer(10_000)
+        val index = codec.dequeueInputBuffer(20_000)
         if (index < 0) return
         val buffer = codec.getInputBuffer(index) ?: return
         buffer.clear()
         writeYuv(pixels, buffer)
-        val pts = frameIndex * 1_000_000L / frameRate
+        val period = 1_000_000L / frameRate.coerceAtLeast(1)
+        val pts = if (timeUs >= 0L) {
+            if (lastPts >= 0L && timeUs <= lastPts) lastPts + period else timeUs
+        } else if (lastPts < 0L) {
+            0L
+        } else {
+            lastPts + period
+        }
+        lastPts = pts
         frameIndex++
         codec.queueInputBuffer(index, 0, yuv.size, pts, 0)
         drain(false)

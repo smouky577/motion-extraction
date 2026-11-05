@@ -4,6 +4,7 @@ __pycache__/
 android/.gradle/
 android/build/
 android/app/build/
+android/fft/build/
 android/dist/
 android/local.properties
 *.apk

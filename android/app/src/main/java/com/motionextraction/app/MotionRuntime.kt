@@ -37,6 +37,25 @@ class MotionRuntime(private val context: Context) {
 
     @Volatile
     var settings = MotionSettings()
+    @Volatile
+    var effects = IirSettings()
+    @Volatile
+    var effectsOn = false
+
+    private val iir = IirMotion()
+    @Volatile private var iirReset = false
+
+    fun updateEffects(next: IirSettings, reset: Boolean = false) {
+        val was = effectsOn
+        effects = next
+        effectsOn = next.enabled
+        if (reset || (next.enabled && !was)) iirReset = true
+        camera?.setLocked()
+    }
+
+    fun freezeReference() {
+        iir.freezeNow = true
+    }
 
     private val mainHandler = Handler(Looper.getMainLooper())
     @Volatile private var modeValue = "idle"
@@ -120,6 +139,7 @@ class MotionRuntime(private val context: Context) {
                 context,
                 onFrame = { latestCamera.set(it) },
                 onError = { text -> showMessage(text) },
+                exposureLocked = { effects.lockExposure },
             ).also { it.start() }
         }
     }
@@ -285,9 +305,17 @@ class MotionRuntime(private val context: Context) {
     }
 
     private fun show(frame: RawFrame) {
-        history.capacity = spanValue * 2 + 3
-        history.add(frame.pixels, frame.width, frame.height)
-        val rendered = history.render(tuned())
+        val rendered = if (effectsOn) {
+            if (iirReset) {
+                iir.reset()
+                iirReset = false
+            }
+            iir.render(frame.pixels, frame.width, frame.height, effects, fps)
+        } else {
+            history.capacity = spanValue * 2 + 3
+            history.add(frame.pixels, frame.width, frame.height)
+            history.render(tuned())
+        }
         if (recordingValue) writeRecording(rendered, frame.width, frame.height)
         val nextDetail = when (modeValue) {
             "live" -> "Камера    ${frame.width}×${frame.height}"
@@ -372,6 +400,9 @@ class MotionRuntime(private val context: Context) {
             exporting = true
         }
         val snapshot = tuned()
+        val useEffects = effectsOn
+        val effectSettings = effects
+        val exportIir = if (useEffects) IirMotion() else null
         val saved = video.frameCount
         history.clear()
         System.gc()
@@ -381,7 +412,11 @@ class MotionRuntime(private val context: Context) {
         var count = 0
         var pending = 0
         try {
-            while (running && count < saved.coerceAtLeast(1) + 30 && pending < 40) {
+            val limit = if (saved > 0) saved + 90 else 200_000
+            var origin = Long.MIN_VALUE
+            var lastStamp = -1L
+            val period = (1_000_000.0 / video.fps.coerceAtLeast(1f)).toLong().coerceAtLeast(1L)
+            while (running && count < limit && pending < 400) {
                 when (val decoded = video.next()) {
                     is Decoded.Frame -> {
                         pending = 0
@@ -394,8 +429,23 @@ class MotionRuntime(private val context: Context) {
                             it.start()
                             recorder = it
                         }
-                        exportHistory.add(decoded.raw.pixels, decoded.raw.width, decoded.raw.height)
-                        current.write(exportHistory.render(snapshot))
+                        if (origin == Long.MIN_VALUE) origin = decoded.timeUs
+                        var stamp = (decoded.timeUs - origin).coerceAtLeast(0L)
+                        if (stamp <= lastStamp) stamp = lastStamp + period
+                        lastStamp = stamp
+                        val pixels = if (exportIir != null) {
+                            exportIir.render(
+                                decoded.raw.pixels,
+                                decoded.raw.width,
+                                decoded.raw.height,
+                                effectSettings,
+                                video.fps,
+                            )
+                        } else {
+                            exportHistory.add(decoded.raw.pixels, decoded.raw.width, decoded.raw.height)
+                            exportHistory.render(snapshot)
+                        }
+                        current.write(pixels, stamp)
                         count++
                         if (saved > 0) positionValue = count.toFloat() / saved
                         val percent = if (saved > 0) count * 100 / saved else count
@@ -446,6 +496,7 @@ class MotionRuntime(private val context: Context) {
         decoder?.close()
         decoder = null
         history.clear()
+        iir.reset()
         playingValue = false
         onMain { playing = false }
     }
