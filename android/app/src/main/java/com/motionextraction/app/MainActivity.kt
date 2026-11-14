@@ -183,7 +183,7 @@ private fun MotionScreen() {
                         "Motion Extraction",
                         color = Accent,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
+                        fontSize = 18.sp,
                         maxLines = 1,
                         softWrap = false,
                         modifier = Modifier.weight(1f).padding(end = 12.dp).alignByBaseline(),
