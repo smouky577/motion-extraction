@@ -73,6 +73,27 @@ private val Muted = Color(0xFF9AA194)
 private val Warm = Color(0xFFFFB03A)
 private val Record = Color(0xFFFF4D3A)
 
+private fun swapLabel(key: String): String = when (key) {
+    "none" -> tr("Оригинал", "Original")
+    "rb" -> tr("Червено ↔ синьо", "Red ↔ blue")
+    "rg" -> tr("Червено ↔ зелено", "Red ↔ green")
+    "gb" -> tr("Зелено ↔ синьо", "Green ↔ blue")
+    "cycle_fwd" -> tr("Цикъл напред", "Cycle forward")
+    "cycle_back" -> tr("Цикъл назад", "Cycle back")
+    else -> key
+}
+
+private fun iirLabel(key: String): String = when (key) {
+    "gray" -> tr("Сиво ±", "Signed gray")
+    "abs" -> tr("Черно", "Black")
+    "mask" -> tr("Маска", "Mask")
+    "add" -> tr("Добавяне", "Add")
+    "glow" -> tr("Сияние", "Glow")
+    "color" -> tr("± цвят", "± color")
+    "frozen" -> tr("Замразен", "Frozen")
+    else -> key
+}
+
 private val swaps = listOf(
     "none" to "Оригинал",
     "rb" to "Червено ↔ синьо",
@@ -157,22 +178,27 @@ private fun MotionScreen() {
     ) {
         if (runtime.mode != "live") {
             Column(modifier = Modifier.padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 4.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Motion Extraction", color = Accent, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Row(Modifier.fillMaxWidth()) {
+                    Text(
+                        "Motion Extraction",
+                        color = Accent,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.weight(1f).padding(end = 12.dp).alignByBaseline(),
+                    )
+                    LanguageFlag(Modifier.alignBy { it.measuredHeight })
                     Text(
                         "by Dr. Baysinger",
                         color = Muted,
                         fontSize = 11.sp,
                         maxLines = 1,
-                        modifier = Modifier.clickable { about = true },
+                        modifier = Modifier.alignByBaseline().clickable { about = true },
                     )
                 }
                 Text(
-                    "инверсия   ·   50%   ·   изместване във времето",
+                    tr("инверсия   ·   50%   ·   изместване във времето", "invert   ·   50%   ·   shift in time"),
                     color = Muted,
                     fontSize = 12.sp,
                     lineHeight = 16.sp,
@@ -196,13 +222,13 @@ private fun MotionScreen() {
                 )
             } else {
                 Text(
-                    "Отвори клип, камера или демо\nНеподвижното става сиво",
+                    tr("Отвори клип, камера или демо\nНеподвижното става сиво", "Open a clip, the camera, or the demo\nStill areas turn gray"),
                     color = Muted,
                 )
             }
             if (showTripod) {
                 Text(
-                    "Ползвай статив",
+                    tr("Ползвай статив", "Use a tripod"),
                     color = Color.White,
                     fontSize = 13.sp,
                     modifier = Modifier
@@ -245,9 +271,9 @@ private fun MotionScreen() {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActionButton("Отвори", Accent, Ink, runtime.exporting.not(), Modifier.weight(1f)) { openVideo.launch("video/*") }
+                ActionButton(tr("Отвори", "Open"), Accent, Ink, runtime.exporting.not(), Modifier.weight(1f)) { openVideo.launch("video/*") }
                 ActionButton(
-                    if (runtime.mode == "live") "Спри" else "Камера",
+                    if (runtime.mode == "live") tr("Спри", "Stop") else tr("Камера", "Camera"),
                     if (runtime.mode == "live") Accent else Panel,
                     if (runtime.mode == "live") Ink else Color.White,
                     !runtime.exporting,
@@ -265,7 +291,7 @@ private fun MotionScreen() {
                     }
                 }
                 ActionButton(
-                    if (runtime.mode == "demo") "Спри" else "Демо",
+                    if (runtime.mode == "demo") tr("Спри", "Stop") else tr("Демо", "Demo"),
                     if (runtime.mode == "demo") Accent else Panel,
                     if (runtime.mode == "demo") Ink else Color.White,
                     !runtime.exporting,
@@ -276,14 +302,14 @@ private fun MotionScreen() {
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ActionButton(
-                    if (runtime.playing && runtime.mode == "file") "Пауза" else "Пусни",
+                    if (runtime.playing && runtime.mode == "file") tr("Пауза", "Pause") else tr("Пусни", "Play"),
                     Panel,
                     Color.White,
                     runtime.mode == "file" && !runtime.exporting,
                     Modifier.weight(1f),
                 ) { runtime.togglePlay() }
                 ActionButton(
-                    "Експорт",
+                    tr("Експорт", "Export"),
                     Panel,
                     Color.White,
                     runtime.mode == "file" && !runtime.exporting && !runtime.recording,
@@ -292,7 +318,7 @@ private fun MotionScreen() {
                     runtime.export()
                 }
                 ActionButton(
-                    if (runtime.recording) "Спри записа" else "Запис",
+                    if (runtime.recording) tr("Спри записа", "Stop rec") else tr("Запис", "Record"),
                     if (runtime.recording) Record else Panel,
                     Color.White,
                     (runtime.mode == "live" || runtime.mode == "demo") && !runtime.exporting,
@@ -301,7 +327,7 @@ private fun MotionScreen() {
             }
         }
         if (!channels && !fx.enabled) LabeledSlider(
-            title = "Изместване",
+            title = tr("Изместване", "Delay"),
             value = delay.toFloat(),
             range = 1f..span.toFloat(),
             steps = (span - 2).coerceAtLeast(0),
@@ -311,11 +337,11 @@ private fun MotionScreen() {
             push(nextDelay = delay)
         }
         if (!channels && !fx.enabled) LabeledSlider(
-            title = "Блур за детайл",
+            title = tr("Блур за детайл", "Detail blur"),
             value = blur.toFloat(),
             range = 0f..24f,
             steps = 23,
-            caption = if (blur <= 0) "дребен детайл" else "блур $blur  ·  по-едър",
+            caption = if (blur <= 0) tr("дребен детайл", "fine detail") else tr("блур $blur  ·  по-едър", "blur $blur  ·  coarser"),
         ) {
             blur = it.roundToInt().coerceIn(0, 24)
             push(nextBlur = blur)
@@ -325,7 +351,7 @@ private fun MotionScreen() {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             ActionButton(
-                "Изместване",
+                tr("Изместване", "Delay"),
                 if (!fx.enabled) Accent else Panel,
                 if (!fx.enabled) Ink else Color.White,
                 true,
@@ -335,7 +361,7 @@ private fun MotionScreen() {
                 pushFx(fx.copy(enabled = false))
             }
             ActionButton(
-                "Ефекти",
+                tr("Ефекти", "Effects"),
                 if (fx.enabled) Accent else Panel,
                 if (fx.enabled) Ink else Color.White,
                 true,
@@ -361,7 +387,7 @@ private fun MotionScreen() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ActionButton(
-                if (glow) "Сияние ВКЛ" else "Сияние",
+                if (glow) tr("Сияние ВКЛ", "Glow ON") else tr("Сияние", "Glow"),
                 if (glow) Warm else Panel,
                 if (glow) Ink else Color.White,
                 true,
@@ -371,11 +397,11 @@ private fun MotionScreen() {
                 push(nextGlow = glow)
             }
             Box(modifier = Modifier.weight(1f)) {
-                ActionButton("Цветове", Panel, Color.White, true, Modifier.fillMaxWidth()) { colorsOpen = true }
+                ActionButton(tr("Цветове", "Colors"), Panel, Color.White, true, Modifier.fillMaxWidth()) { colorsOpen = true }
                 DropdownMenu(expanded = colorsOpen, onDismissRequest = { colorsOpen = false }) {
-                    swaps.forEach { (key, label) ->
+                    swaps.forEach { (key, _) ->
                         DropdownMenuItem(
-                            text = { Text(label) },
+                            text = { Text(swapLabel(key)) },
                             onClick = {
                                 swap = key
                                 push(nextSwap = key)
@@ -386,7 +412,7 @@ private fun MotionScreen() {
                 }
             }
             ActionButton(
-                "Канали",
+                tr("Канали", "Channels"),
                 if (channels) Accent else Panel,
                 if (channels) Ink else Color.White,
                 true,
@@ -400,15 +426,15 @@ private fun MotionScreen() {
                     .weight(1f),
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                ChannelSlider("Червено", Color(0xFFE25B4A), offR, delay, span) {
+                ChannelSlider(tr("Червено", "Red"), Color(0xFFE25B4A), offR, delay, span) {
                     offR = it
                     push(nextR = it)
                 }
-                ChannelSlider("Зелено", Color(0xFF8DCE78), offG, delay, span) {
+                ChannelSlider(tr("Зелено", "Green"), Color(0xFF8DCE78), offG, delay, span) {
                     offG = it
                     push(nextG = it)
                 }
-                ChannelSlider("Синьо", Color(0xFF7EB0E8), offB, delay, span) {
+                ChannelSlider(tr("Синьо", "Blue"), Color(0xFF7EB0E8), offB, delay, span) {
                     offB = it
                     push(nextB = it)
                 }
@@ -430,26 +456,26 @@ private fun EffectsPanel(
     onPreset: (IirSettings) -> Unit,
     onFreeze: () -> Unit,
 ) {
-    val modeLabel = iirModes.firstOrNull { it.first == fx.mode }?.second ?: "Черно"
+    val modeLabel = iirLabel(fx.mode)
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ActionButton("Капки", Panel, Color.White, true, Modifier.weight(1f)) { onPreset(fx.insects()) }
-            ActionButton("Трева", Panel, Color.White, true, Modifier.weight(1f)) { onPreset(fx.grass()) }
+            ActionButton(tr("Капки", "Drops"), Panel, Color.White, true, Modifier.weight(1f)) { onPreset(fx.insects()) }
+            ActionButton(tr("Трева", "Grass"), Panel, Color.White, true, Modifier.weight(1f)) { onPreset(fx.grass()) }
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ActionButton("Пара", Panel, Color.White, true, Modifier.weight(1f)) { onPreset(fx.vapor()) }
-            ActionButton("Луна", Panel, Color.White, true, Modifier.weight(1f)) { onPreset(fx.moon()) }
+            ActionButton(tr("Пара", "Vapor"), Panel, Color.White, true, Modifier.weight(1f)) { onPreset(fx.vapor()) }
+            ActionButton(tr("Луна", "Moon"), Panel, Color.White, true, Modifier.weight(1f)) { onPreset(fx.moon()) }
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(modifier = Modifier.weight(1f)) {
                 ActionButton(modeLabel, Accent, Ink, true, Modifier.fillMaxWidth()) { onModeOpen(true) }
                 DropdownMenu(expanded = modeOpen, onDismissRequest = { onModeOpen(false) }) {
-                    iirModes.forEach { (key, label) ->
+                    iirModes.forEach { (key, _) ->
                         DropdownMenuItem(
-                            text = { Text(label) },
+                            text = { Text(iirLabel(key)) },
                             onClick = {
                                 onChange(fx.copy(mode = key))
                                 onModeOpen(false)
@@ -459,7 +485,7 @@ private fun EffectsPanel(
                 }
             }
             ActionButton(
-                if (fx.white) "Бяло" else "По канали",
+                if (fx.white) tr("Бяло", "White") else tr("По канали", "Per channel"),
                 if (fx.white) Warm else Panel,
                 if (fx.white) Ink else Color.White,
                 true,
@@ -468,57 +494,57 @@ private fun EffectsPanel(
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionButton(
-                if (fx.lockExposure) "AE заключен" else "Заключи AE",
+                if (fx.lockExposure) tr("AE заключен", "AE locked") else tr("Заключи AE", "Lock AE"),
                 if (fx.lockExposure) Warm else Panel,
                 if (fx.lockExposure) Ink else Color.White,
                 true,
                 Modifier.weight(1f),
             ) { onChange(fx.copy(lockExposure = !fx.lockExposure)) }
             ActionButton(
-                "Замрази сега",
+                tr("Замрази сега", "Freeze now"),
                 Panel,
                 Color.White,
                 fx.mode == "frozen",
                 Modifier.weight(1f),
             ) { onFreeze() }
         }
-        LabeledSlider("Памет", fx.memory, 0.1f..10f, 0, "%.1f сек".format(fx.memory)) {
+        LabeledSlider(tr("Памет", "Memory"), fx.memory, 0.1f..10f, 0, "%.1f %s".format(fx.memory, tr("сек", "sec"))) {
             onChange(fx.copy(memory = it.coerceIn(0.1f, 10f)))
         }
-        LabeledSlider("Изглаждане", fx.aFast, 0.1f..0.6f, 0, "a %.2f".format(fx.aFast)) {
+        LabeledSlider(tr("Изглаждане", "Smoothing"), fx.aFast, 0.1f..0.6f, 0, "a %.2f".format(fx.aFast)) {
             onChange(fx.copy(aFast = it.coerceIn(0.1f, 0.6f)))
         }
-        LabeledSlider("Усилване", fx.gain, 1f..12f, 0, "×%.1f".format(fx.gain)) {
+        LabeledSlider(tr("Усилване", "Gain"), fx.gain, 1f..12f, 0, "×%.1f".format(fx.gain)) {
             onChange(fx.copy(gain = it.coerceIn(1f, 12f)))
         }
-        LabeledSlider("Праг", fx.thr, 0f..10f, 0, "%.1f".format(fx.thr)) {
+        LabeledSlider(tr("Праг", "Threshold"), fx.thr, 0f..10f, 0, "%.1f".format(fx.thr)) {
             onChange(fx.copy(thr = it.coerceIn(0f, 10f)))
         }
-        LabeledSlider("Гама", fx.gamma, 0.4f..1f, 0, "%.2f".format(fx.gamma)) {
+        LabeledSlider(tr("Гама", "Gamma"), fx.gamma, 0.4f..1f, 0, "%.2f".format(fx.gamma)) {
             onChange(fx.copy(gamma = it.coerceIn(0.4f, 1f)))
         }
-        LabeledSlider("Блур", fx.blur, 0f..8f, 0, if (fx.blur < 0.2f) "без" else "%.1f".format(fx.blur)) {
+        LabeledSlider(tr("Блур", "Blur"), fx.blur, 0f..8f, 0, if (fx.blur < 0.2f) tr("без", "none") else "%.1f".format(fx.blur)) {
             onChange(fx.copy(blur = it.coerceIn(0f, 8f)))
         }
-        LabeledSlider("Оригинал", fx.dim, 0f..1f, 0, "%.2f".format(fx.dim)) {
+        LabeledSlider(tr("Оригинал", "Original"), fx.dim, 0f..1f, 0, "%.2f".format(fx.dim)) {
             onChange(fx.copy(dim = it.coerceIn(0f, 1f)))
         }
-        LabeledSlider("Ореол", fx.glowSigma, 4f..30f, 0, "%.0f".format(fx.glowSigma)) {
+        LabeledSlider(tr("Ореол", "Halo"), fx.glowSigma, 4f..30f, 0, "%.0f".format(fx.glowSigma)) {
             onChange(fx.copy(glowSigma = it.coerceIn(4f, 30f)))
         }
-        LabeledSlider("Сила на ореола", fx.glowStrength, 0f..2f, 0, "%.2f".format(fx.glowStrength)) {
+        LabeledSlider(tr("Сила на ореола", "Halo strength"), fx.glowStrength, 0f..2f, 0, "%.2f".format(fx.glowStrength)) {
             onChange(fx.copy(glowStrength = it.coerceIn(0f, 2f)))
         }
         LabeledSlider(
-            "Обновяване",
+            tr("Обновяване", "Refresh"),
             fx.refreshSec,
             0f..60f,
             0,
-            if (fx.refreshSec < 0.5f) "никога" else "%.0f сек".format(fx.refreshSec),
+            if (fx.refreshSec < 0.5f) tr("никога", "never") else "%.0f %s".format(fx.refreshSec, tr("сек", "sec")),
         ) {
             onChange(fx.copy(refreshSec = it.coerceIn(0f, 60f)))
         }
-        LabeledSlider("Мащаб", fx.scale, 0.25f..1f, 0, "%.2f".format(fx.scale)) {
+        LabeledSlider(tr("Мащаб", "Scale"), fx.scale, 0.25f..1f, 0, "%.2f".format(fx.scale)) {
             onChange(fx.copy(scale = it.coerceIn(0.25f, 1f)))
         }
     }
@@ -583,7 +609,7 @@ private fun LabeledSlider(
 @Composable
 private fun ChannelSlider(name: String, color: Color, value: Int, delay: Int, span: Int, onChange: (Int) -> Unit) {
     val total = (delay + value).coerceIn(0, span * 2)
-    Text("$name    ${value.signed()}    общо $total к", color = color, fontSize = 13.sp)
+    Text("$name    ${value.signed()}    ${tr("общо", "total")} $total ${tr("к", "f")}", color = color, fontSize = 13.sp)
     Slider(
         value = value.toFloat(),
         onValueChange = { onChange(it.roundToInt().coerceIn(-span, span)) },
@@ -601,8 +627,8 @@ private fun sliderSideInset(): Dp {
 
 private fun frameCaption(delay: Int, span: Int): String {
     val seconds = delay.toFloat() / span.coerceAtLeast(1)
-    val word = if (delay == 1) "кадър" else "кадъра"
-    return "$delay $word   ·   ${"%.2f".format(seconds)} сек"
+    val word = if (delay == 1) tr("кадър", "frame") else tr("кадъра", "frames")
+    return "$delay $word   ·   ${"%.2f".format(seconds)} ${tr("сек", "sec")}"
 }
 
 private fun Int.signed(): String = if (this > 0) "+$this" else toString()

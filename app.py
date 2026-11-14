@@ -53,6 +53,14 @@ RED_TROUGH = "#3a2422"
 GREEN_TROUGH = "#243328"
 BLUE_TROUGH = "#222a36"
 
+SWAP_EN = {
+    "none": "Original",
+    "rb": "Red ↔ blue",
+    "rg": "Red ↔ green",
+    "gb": "Green ↔ blue",
+    "cycle_fwd": "Cycle forward",
+    "cycle_back": "Cycle back",
+}
 SWAP_CHOICES = (
     ("Оригинал", "none"),
     ("Червено ↔ синьо", "rb"),
@@ -258,6 +266,7 @@ class MotionApp:
         self.last_frame_t: float | None = None
         self.demo_static: np.ndarray | None = None
         self.demo_i = 0
+        self.english = False
 
         self._build()
         self._place_window()
@@ -314,16 +323,18 @@ class MotionApp:
             widget.bind("<Triple-Button-1>", self.toggle_hidden)
             widget.bind("<Button-3>", self.toggle_hidden)
 
-        subtitle = tk.Label(
+        self.subtitle = tk.Label(
             header,
             text="инверсия    ·    50%    ·    изместване във времето",
             bg=BG,
             fg=MUTED,
             font=("Segoe UI", 9),
         )
-        subtitle.pack(side="left", padx=(16, 0), pady=(8, 0))
+        self.subtitle.pack(side="left", padx=(16, 0), pady=(8, 0))
+        mark = tk.Frame(header, bg=BG)
+        mark.pack(side="right", anchor="e")
         credit = tk.Label(
-            header,
+            mark,
             text="by Dr. Baysinger",
             bg=BG,
             fg=MUTED,
@@ -332,6 +343,12 @@ class MotionApp:
         )
         credit.pack(side="right")
         credit.bind("<Button-1>", lambda _event: show_about(self.root))
+        self.flag = tk.Canvas(
+            mark, width=28, height=18, highlightthickness=0, bd=0, cursor="hand2", bg=BG,
+        )
+        self.flag.pack(side="left", padx=(0, 8))
+        self.flag.bind("<Button-1>", self.toggle_language)
+        self.draw_flag()
 
         rule = tk.Frame(self.root, bg=ACCENT, height=2)
         rule.grid(row=2, column=0, sticky="ew", padx=18, pady=(8, 0))
@@ -352,7 +369,7 @@ class MotionApp:
         self.placeholder_id = self.canvas.create_text(
             450,
             210,
-            text="Отвори клип, камера или демо\nНеподвижното става сиво, движението остава",
+            text=self.tr("Отвори клип, камера или демо\nНеподвижното става сиво, движението остава", "Open a clip, the camera, or the demo\nStill areas turn gray, motion stays"),
             fill=MUTED,
             font=("Segoe UI", 13),
             justify="center",
@@ -388,7 +405,8 @@ class MotionApp:
 
         delay_row = tk.Frame(self.root, bg=BG)
         delay_row.grid(row=5, column=0, sticky="ew", padx=18, pady=(14, 0))
-        self._caption(delay_row, "Изместване").pack(side="left")
+        self.delay_caption = self._caption(delay_row, self.tr("Изместване", "Delay"))
+        self.delay_caption.pack(side="left")
         self.delay_var = tk.IntVar(value=1)
         self.delay_scale = self._scale(delay_row, self.delay_var, 1, 30, self.on_setting, TROUGH)
         self.delay_scale.pack(side="left", fill="x", expand=True, padx=12)
@@ -399,7 +417,8 @@ class MotionApp:
 
         blur_row = tk.Frame(self.root, bg=BG)
         blur_row.grid(row=6, column=0, sticky="ew", padx=18, pady=(6, 0))
-        self._caption(blur_row, "Блур за детайл").pack(side="left")
+        self.blur_caption = self._caption(blur_row, self.tr("Блур за детайл", "Detail blur"))
+        self.blur_caption.pack(side="left")
         self.blur_var = tk.IntVar(value=0)
         self.blur_scale = self._scale(blur_row, self.blur_var, 0, BLUR_MAX, self.on_setting, TROUGH)
         self.blur_scale.pack(side="left", fill="x", expand=True, padx=12)
@@ -414,9 +433,8 @@ class MotionApp:
         self.glow_var = tk.BooleanVar(value=False)
         self.glow_btn = self._button(actions, "Сияние", self.on_glow)
         self.glow_btn.pack(side="left")
-        tk.Label(actions, text="Цветове", bg=BG, fg=MUTED, font=("Segoe UI", 10)).pack(
-            side="left", padx=(16, 8)
-        )
+        self.colors_caption = tk.Label(actions, text=self.tr("Цветове", "Colors"), bg=BG, fg=MUTED, font=("Segoe UI", 10))
+        self.colors_caption.pack(side="left", padx=(16, 8))
         self.swap_var = tk.StringVar(value="Оригинал")
         self.swap_menu = tk.OptionMenu(
             actions,
@@ -451,38 +469,42 @@ class MotionApp:
         self.hidden.grid(row=9, column=0, sticky="ew", padx=18, pady=(10, 0))
         hidden_head = tk.Frame(self.hidden, bg="#141712")
         hidden_head.pack(fill="x", padx=12, pady=(10, 0))
-        tk.Label(
+        self.hidden_title = tk.Label(
             hidden_head,
             text="Канално време",
             bg="#141712",
             fg=TEXT,
             font=("Segoe UI", 11, "bold"),
-        ).pack(side="left")
-        tk.Label(
+        )
+        self.hidden_title.pack(side="left")
+        self.hidden_hint = tk.Label(
             hidden_head,
             text="добавя се към основното изместване",
             bg="#141712",
             fg=MUTED,
             font=("Segoe UI", 9),
-        ).pack(side="left", padx=(10, 0))
-        close = self._button(hidden_head, "Затвори", self.toggle_hidden)
-        close.pack(side="right")
+        )
+        self.hidden_hint.pack(side="left", padx=(10, 0))
+        self.close_btn = self._button(hidden_head, "Затвори", self.toggle_hidden)
+        self.close_btn.pack(side="right")
         self.off_r = tk.IntVar(value=0)
         self.off_g = tk.IntVar(value=0)
         self.off_b = tk.IntVar(value=0)
-        self.scale_r, self.red_value = self._channel_row("Червено", self.off_r, RED, RED_TROUGH)
-        self.scale_g, self.green_value = self._channel_row("Зелено", self.off_g, "#8dce78", GREEN_TROUGH)
-        self.scale_b, self.blue_value = self._channel_row("Синьо", self.off_b, "#7eb0e8", BLUE_TROUGH)
+        self.scale_r, self.red_value, self.red_name = self._channel_row("Червено", self.off_r, RED, RED_TROUGH)
+        self.scale_g, self.green_value, self.green_name = self._channel_row("Зелено", self.off_g, "#8dce78", GREEN_TROUGH)
+        self.scale_b, self.blue_value, self.blue_name = self._channel_row("Синьо", self.off_b, "#7eb0e8", BLUE_TROUGH)
         foot = tk.Frame(self.hidden, bg="#141712")
         foot.pack(fill="x", padx=12, pady=(4, 10))
-        self._button(foot, "Нулирай", self.on_reset_offsets).pack(side="left")
-        tk.Label(
+        self.reset_btn = self._button(foot, "Нулирай", self.on_reset_offsets)
+        self.reset_btn.pack(side="left")
+        self.channel_hint = tk.Label(
             foot,
             text="Бутон Канали или F2",
             bg="#141712",
             fg=MUTED,
             font=("Segoe UI", 8),
-        ).pack(side="right")
+        )
+        self.channel_hint.pack(side="right")
         self.hidden.grid_remove()
 
         status = tk.Frame(self.root, bg=BG)
@@ -560,7 +582,7 @@ class MotionApp:
     def _channel_row(self, name: str, variable: tk.IntVar, color: str, trough: str):
         row = tk.Frame(self.hidden, bg="#141712")
         row.pack(fill="x", padx=12, pady=3)
-        tk.Label(
+        name_label = tk.Label(
             row,
             text=name,
             bg="#141712",
@@ -568,14 +590,15 @@ class MotionApp:
             font=("Segoe UI", 10),
             width=12,
             anchor="w",
-        ).pack(side="left")
+        )
+        name_label.pack(side="left")
         scale = self._scale(row, variable, -30, 30, self.on_setting, trough)
         scale.pack(side="left", fill="x", expand=True, padx=8)
         value = tk.Label(
             row, text="", bg="#141712", fg=TEXT, font=("Segoe UI", 9), width=26, anchor="e"
         )
         value.pack(side="right")
-        return scale, value
+        return scale, value, name_label
 
     def snapshot(self) -> dict:
         with self.state_lock:
@@ -593,7 +616,7 @@ class MotionApp:
         swap = "none"
         label = self.swap_var.get()
         for name, key in SWAP_CHOICES:
-            if name == label:
+            if name == label or SWAP_EN.get(key) == label:
                 swap = key
                 break
         settings = Settings(
@@ -621,13 +644,13 @@ class MotionApp:
         fps = self.display_fps if self.display_fps > 1 else 30.0
         delay = int(self.delay_var.get())
         seconds = delay / fps
-        word = "кадър" if delay == 1 else "кадъра"
-        self.delay_value.configure(text=f"{delay} {word}   ·   {seconds:.2f} сек")
+        word = self.tr("кадър", "frame") if delay == 1 else self.tr("кадъра", "frames")
+        self.delay_value.configure(text=f"{delay} {word}   ·   {seconds:.2f} {self.tr('сек', 'sec')}")
         blur = int(self.blur_var.get())
         if blur <= 0:
-            self.blur_value.configure(text="дребен детайл")
+            self.blur_value.configure(text=self.tr("дребен детайл", "fine detail"))
         else:
-            self.blur_value.configure(text=f"блур {blur}   ·   по-едър")
+            self.blur_value.configure(text=self.tr(f"блур {blur}   ·   по-едър", f"blur {blur}   ·   coarser"))
         span = self.delay_max
         for offset, label in (
             (self.off_r, self.red_value),
@@ -636,14 +659,14 @@ class MotionApp:
         ):
             extra = int(offset.get())
             total = max(0, min(span * 2, delay + extra))
-            label.configure(text=f"{extra:+d}    общо {total} к")
+            label.configure(text=f"{extra:+d}    {self.tr('общо', 'total')} {total} {self.tr('к', 'f')}")
         active = any(int(var.get()) != 0 for var in (self.off_r, self.off_g, self.off_b))
         self.rgb_flag.configure(text="RGB" if active else "")
 
     def refresh_glow_button(self) -> None:
         if self.glow_var.get():
             self.glow_btn.configure(
-                text="Сияние  ВКЛ",
+                text=self.tr("Сияние  ВКЛ", "Glow ON"),
                 bg=WARM,
                 fg=DARK,
                 activebackground=WARM,
@@ -651,7 +674,7 @@ class MotionApp:
             )
         else:
             self.glow_btn.configure(
-                text="Сияние",
+                text=self.tr("Сияние", "Glow"),
                 bg=RAISED,
                 fg=TEXT,
                 activebackground=RAISED,
@@ -765,11 +788,86 @@ class MotionApp:
         self.refresh_channel_button()
         return "break"
 
+    def tr(self, bg: str, en: str) -> str:
+        return en if self.english else bg
+
+    def draw_flag(self) -> None:
+        canvas = self.flag
+        canvas.delete("all")
+        width, height = 28, 18
+        if not self.english:
+            canvas.create_rectangle(0, 0, width, height / 3, fill="#ffffff", width=0)
+            canvas.create_rectangle(0, height / 3, width, height * 2 / 3, fill="#00966E", width=0)
+            canvas.create_rectangle(0, height * 2 / 3, width, height, fill="#D62612", width=0)
+            return
+        canvas.create_rectangle(0, 0, width, height, fill="#012169", width=0)
+        canvas.create_line(0, 0, width, height, fill="#ffffff", width=5)
+        canvas.create_line(width, 0, 0, height, fill="#ffffff", width=5)
+        canvas.create_line(0, 2, width, height + 2, fill="#C8102E", width=2)
+        canvas.create_line(width, 2, 0, height + 2, fill="#C8102E", width=2)
+        canvas.create_rectangle(width / 2 - 3, 0, width / 2 + 3, height, fill="#ffffff", width=0)
+        canvas.create_rectangle(0, height / 2 - 2.5, width, height / 2 + 2.5, fill="#ffffff", width=0)
+        canvas.create_rectangle(width / 2 - 1.6, 0, width / 2 + 1.6, height, fill="#C8102E", width=0)
+        canvas.create_rectangle(0, height / 2 - 1.2, width, height / 2 + 1.2, fill="#C8102E", width=0)
+
+    def refresh_swap_menu(self) -> None:
+        current = "none"
+        label = self.swap_var.get()
+        for name, key in SWAP_CHOICES:
+            if label == name or label == SWAP_EN[key]:
+                current = key
+                break
+        menu = self.swap_menu["menu"]
+        menu.delete(0, "end")
+        for name, key in SWAP_CHOICES:
+            shown = self.tr(name, SWAP_EN[key])
+            menu.add_command(label=shown, command=lambda value=shown: self.swap_var.set(value))
+        shown = next(name for name, key in SWAP_CHOICES if key == current)
+        self.swap_var.set(self.tr(shown, SWAP_EN[current]))
+
+    def toggle_language(self, _event=None) -> str:
+        self.english = not self.english
+        self.draw_flag()
+        self.subtitle.configure(
+            text=self.tr(
+                "инверсия    ·    50%    ·    изместване във времето",
+                "invert    ·    50%    ·    shift in time",
+            )
+        )
+        self.canvas.itemconfigure(
+            self.placeholder_id,
+            text=self.tr(
+                "Отвори клип, камера или демо\nНеподвижното става сиво, движението остава",
+                "Open a clip, the camera, or the demo\nStill areas turn gray, motion stays",
+            ),
+        )
+        self.delay_caption.configure(text=self.tr("Изместване", "Delay"))
+        self.blur_caption.configure(text=self.tr("Блур за детайл", "Detail blur"))
+        self.colors_caption.configure(text=self.tr("Цветове", "Colors"))
+        self.hidden_title.configure(text=self.tr("Канално време", "Channel time"))
+        self.hidden_hint.configure(
+            text=self.tr("добавя се към основното изместване", "added to the main delay")
+        )
+        self.close_btn.configure(text=self.tr("Затвори", "Close"))
+        self.reset_btn.configure(text=self.tr("Нулирай", "Reset"))
+        self.channel_hint.configure(text=self.tr("Бутон Канали или F2", "Channels button or F2"))
+        self.cancel_btn.configure(text=self.tr("Отказ", "Cancel"))
+        self.red_name.configure(text=self.tr("Червено", "Red"))
+        self.green_name.configure(text=self.tr("Зелено", "Green"))
+        self.blue_name.configure(text=self.tr("Синьо", "Blue"))
+        self.refresh_swap_menu()
+        self.chrome_key = None
+        self.apply_chrome(self.snapshot())
+        self.update_labels()
+        self.refresh_glow_button()
+        self.refresh_channel_button()
+        return "break"
+
     def refresh_channel_button(self) -> None:
         if self.hidden_open:
-            self._paint(self.channel_btn, ACCENT, DARK, "Канали", True)
+            self._paint(self.channel_btn, ACCENT, DARK, self.tr("Канали", "Channels"), True)
         else:
-            self._paint(self.channel_btn, RAISED, TEXT, "Канали", True)
+            self._paint(self.channel_btn, RAISED, TEXT, self.tr("Канали", "Channels"), True)
 
     def on_escape(self, _event=None):
         if self.hidden_open:
@@ -812,28 +910,28 @@ class MotionApp:
         self.play_mode_ui = mode
 
         if mode == "live":
-            self._paint(self.camera_btn, ACCENT, DARK, "Спри камерата", True)
+            self._paint(self.camera_btn, ACCENT, DARK, self.tr("Спри камерата", "Stop camera"), True)
         else:
-            self._paint(self.camera_btn, RAISED, TEXT, "Камера", not exporting)
+            self._paint(self.camera_btn, RAISED, TEXT, self.tr("Камера", "Camera"), not exporting)
         if mode == "demo":
-            self._paint(self.demo_btn, ACCENT, DARK, "Спри демото", True)
+            self._paint(self.demo_btn, ACCENT, DARK, self.tr("Спри демото", "Stop demo"), True)
         else:
-            self._paint(self.demo_btn, RAISED, TEXT, "Демо", not exporting)
+            self._paint(self.demo_btn, RAISED, TEXT, self.tr("Демо", "Demo"), not exporting)
 
-        self._paint(self.open_btn, ACCENT, DARK, "Отвори клип", not exporting)
+        self._paint(self.open_btn, ACCENT, DARK, self.tr("Отвори клип", "Open clip"), not exporting)
         if mode == "file" and playing:
-            self._paint(self.play_btn, RAISED, TEXT, "Пауза", True)
+            self._paint(self.play_btn, RAISED, TEXT, self.tr("Пауза", "Pause"), True)
         else:
-            self._paint(self.play_btn, RAISED, TEXT, "Пусни", mode == "file" and not exporting)
-        self._paint(self.export_btn, RAISED, TEXT, "Експорт", mode == "file" and not exporting and not recording)
+            self._paint(self.play_btn, RAISED, TEXT, self.tr("Пусни", "Play"), mode == "file" and not exporting)
+        self._paint(self.export_btn, RAISED, TEXT, self.tr("Експорт", "Export"), mode == "file" and not exporting and not recording)
         if recording:
-            self._paint(self.record_btn, RED, TEXT, "Спри записа", True)
+            self._paint(self.record_btn, RED, TEXT, self.tr("Спри записа", "Stop rec"), True)
         else:
             self._paint(
                 self.record_btn,
                 RAISED,
                 TEXT,
-                "Запис",
+                self.tr("Запис", "Record"),
                 mode in ("live", "demo") and not exporting,
             )
         if exporting:

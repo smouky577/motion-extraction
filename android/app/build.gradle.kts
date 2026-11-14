@@ -11,8 +11,8 @@ android {
         applicationId = "com.motionextraction.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 18
-        versionName = "1.17"
+        versionCode = 21
+        versionName = "1.20"
     }
 
     buildTypes {
