@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -178,7 +179,11 @@ private fun MotionScreen() {
     ) {
         if (runtime.mode != "live") {
             Column(modifier = Modifier.padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 4.dp)) {
-                Row(Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
                         "Motion Extraction",
                         color = Accent,
@@ -186,16 +191,20 @@ private fun MotionScreen() {
                         fontSize = 18.sp,
                         maxLines = 1,
                         softWrap = false,
-                        modifier = Modifier.weight(1f).padding(end = 12.dp).alignByBaseline(),
+                        modifier = Modifier.padding(end = 12.dp),
                     )
-                    LanguageFlag(Modifier.alignBy { it.measuredHeight })
-                    Text(
-                        "by Dr. Baysinger",
-                        color = Muted,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        modifier = Modifier.alignByBaseline().clickable { about = true },
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        LanguageFlag()
+                        Text(
+                            "by Dr. Baysinger",
+                            color = Muted,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .clickable { about = true },
+                        )
+                    }
                 }
                 Text(
                     tr("инверсия   ·   50%   ·   изместване във времето", "invert   ·   50%   ·   shift in time"),
@@ -646,12 +655,19 @@ private fun AboutDialog(onClose: () -> Unit) {
     val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onClose,
+        containerColor = Panel,
+        titleContentColor = Color.White,
+        textContentColor = Color.White,
         confirmButton = {
             TextButton(onClick = onClose) { Text("OK", color = Accent) }
         },
         title = { Text("About", fontWeight = FontWeight.Bold) },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
                 Text(ABOUT_EN)
                 Text(ABOUT_BG, modifier = Modifier.padding(top = 12.dp))
                 Text("Revolut", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp))

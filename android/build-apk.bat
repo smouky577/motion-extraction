@@ -1,9 +1,13 @@
 @echo off
 cd /d "%~dp0"
-set "JAVA_HOME=C:\Users\Pc\Projects\Ballistic calculator app\BallisticScope\.tools\jdk\jdk-17.0.20.1+1"
+set "JAVA_HOME=C:\Tools\jdk-17"
 set "PATH=%JAVA_HOME%\bin;%PATH%"
-call gradlew.bat assembleDebug
+if not exist keystore.properties (
+    echo Липсва keystore.properties — release не се подписва.
+    exit /b 1
+)
+call gradlew.bat assembleRelease "-Dorg.gradle.java.home=%JAVA_HOME%"
 if errorlevel 1 exit /b 1
 if not exist dist mkdir dist
-copy /Y app\build\outputs\apk\debug\app-debug.apk dist\MotionExtraction.apk
+copy /Y app\build\outputs\apk\release\app-release.apk dist\MotionExtraction.apk
 echo APK: dist\MotionExtraction.apk
