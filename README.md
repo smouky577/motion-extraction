@@ -6,13 +6,13 @@
 
 ## Телефон
 
-Свали **Motion-Extraction-1.20.apk** от [Releases](https://github.com/smouky577/motion-extraction/releases) и го инсталирай. Ако Android попита, разреши инсталация от този файл.
+Свали **Motion-Extraction-1.21.apk** от [Releases](https://github.com/smouky577/motion-extraction/releases) и го инсталирай. Ако Android попита, разреши инсталация от този файл.
 
 Кодът за телефона е в папката `android`.
 
 ## Windows
 
-Свали **Motion-Extraction-Windows-1.20.zip** от [Releases](https://github.com/smouky577/motion-extraction/releases). Цъкни върху името на zip файла. Той се сваля цял.
+Свали **Motion-Extraction-Windows-1.21.zip** от [Releases](https://github.com/smouky577/motion-extraction/releases). Цъкни върху името на zip файла. Той се сваля цял.
 
 Не отваряй `app.py` и `engine.py` в сайта и не копирай текста в нов файл. Така файловете само се показват, не се свалят.
 
@@ -44,13 +44,13 @@ There is a phone app and a Windows app.
 
 ## Phone
 
-Download **Motion-Extraction-1.20.apk** from [Releases](https://github.com/smouky577/motion-extraction/releases) and install it. Allow installation from this file if Android asks.
+Download **Motion-Extraction-1.21.apk** from [Releases](https://github.com/smouky577/motion-extraction/releases) and install it. Allow installation from this file if Android asks.
 
 The phone source is in the `android` folder.
 
 ## Windows
 
-Download **Motion-Extraction-Windows-1.20.zip** from [Releases](https://github.com/smouky577/motion-extraction/releases). Click the zip file name. The whole archive downloads.
+Download **Motion-Extraction-Windows-1.21.zip** from [Releases](https://github.com/smouky577/motion-extraction/releases). Click the zip file name. The whole archive downloads.
 
 Do not open `app.py` or `engine.py` on the site and do not paste them into a new file. That only shows the text.
 
